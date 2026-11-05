@@ -1,0 +1,12 @@
+{
+  "name": "project-management",
+  "version": "1.0.0",
+  "description": "this backend api based project",
+  "license": "ISC",
+  "author": "akash maurya",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
