@@ -16,4 +16,13 @@ app.use(express.static("public"))
 app.use(cookieParser())
 
 
+//Testing route
+app.get("/", (req,res)=>{
+    res.send("server running")
+})
+
+//Healthcheck route
+import healthcheckRoutes from "./routes/healthcheckRoutes.js"
+app.use("/api/v1/healthcheck" , healthcheckRoutes)
+
 export {app}
