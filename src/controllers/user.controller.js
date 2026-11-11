@@ -4,6 +4,8 @@ import {asyncHandler} from "../utils/asyncHandler.js"
 import { emailVerficationMailgenContent , forgetPasswordMailgenContent , sendEmail } from "../utils/mail.js"
 import {User} from "../models/user.model.js"
 import crypto from "crypto"
+import jwt from "jsonwebtoken" 
+import { isValidObjectId } from "mongoose"
 
 const emailVerification = asyncHandler(async (req, res) => {
     // 1. Route se emailToken nikalne ke liye check karo ki route mein bhi yahi naam ho
@@ -152,4 +154,134 @@ const userLogoutController = asyncHandler(async(req,res)=>{
    .clearCookie("refreshToken" , options)
    .json(new ApiResponse(200 , {} , "User logout successfully"))
 })
-export {userRegisterationController , emailVerification , userLoginController , userLogoutController}
+
+const getCurrentUserController = asyncHandler(async(req,res)=>{
+    const getUser = await User.findById(req.user._id).select("-_id -password -refreshToken -emailVerificationToken -emailVerificationTokenExpires")
+     return res.status(200).json(new ApiResponse(200 , getUser , "Current user fetched successfully"))
+})
+const resentEmailVerification = asyncHandler(async(req,res)=>{
+    const user = await User.findById(req.user?._id);
+    if(!user) throw new ApiError(401 , "User dosn't exist");
+
+    if(user.isEmailVerified) throw new ApiError(401 , "Email already verified");
+    const {unHashedToken, hashedToken, expires} =  User.generateTemporaryToken();
+   
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationTokenExpires = expires
+
+    await user.save({validateBeforeSave:false})
+
+    await sendEmail({
+        email : user?.email,
+        subject : "Please verify this email",
+        mailgenContent : emailVerficationMailgenContent(
+            user.username,
+            `${req.protocol}://${req.get("host")}/api/v1/users/verify-email/${unHashedToken}`
+        )
+    });
+  
+    return res.status(200).json(new ApiResponse(200 , {} , "Email has been sent to your email addresss"))
+
+})
+
+const refreshAccessToken = asyncHandler(async(req,res)=>{
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+
+    if(!incomingRefreshToken) throw new ApiError(400 , "Unauthrized request")
+    
+    try{
+        const decodedToekn = jwt.verify(incomingRefreshToken , process.env.REFRESH_TOKEN_SECRET);
+        const user = await User.findById(decodedToekn?._id)
+        if(!user) throw new ApiError(400 , "Invalid Refresh Token");
+
+        if(incomingRefreshToken!==user.refreshToken) throw new ApiError(400 , "Refresh token in expired")
+        
+        const {accessToken , refreshToken : newRefreshToken} = await generateAccessAndRefreshToken(user._id)
+        user.refreshToken = newRefreshToken
+        await user.save()
+
+        const options ={
+      htppOnly : true,
+      secure : true
+         }
+
+         return res.status(200).cookie("accessToken" , accessToken , options )
+         .cookie("refreshToken" , newRefreshToken , options)
+         .json(new ApiResponse(200 , {accessToken , refreshToken: newRefreshToken} , "Access token refreshed.."))
+    }catch(error){
+        console.log("Error while refreshing access token at : ", error)
+        throw new ApiError(400 , "Invalid Refresh Token");
+        
+
+    }
+})
+
+const forgetPasswordController = asyncHandler(async(req,res)=>{
+    const {email} = req.body
+    if(email.trim()==='')throw new ApiError(400 , "Please enter your email address");
+
+    const userExist = await User.findOne({email})
+
+    if(!userExist) throw new ApiError(400 , "Your not registerd please registration first");
+
+
+    const {unHashedToken, hashedToken, expires } = User.generateTemporaryToken();
+    userExist.forgetPasswordToken = hashedToken
+    userExist.forgetPasswordExpires = expires
+    await userExist.save({validateBeforeSave:false});
+
+     await sendEmail({
+        email : userExist?.email,
+        subject : "Password reset request",
+        mailgenContent : forgetPasswordMailgenContent(
+            userExist.username,
+            `${process.env.FORGET_PASSWORD_REDIRECT_URL}/${unHashedToken}`
+        )
+    });
+
+    return res.status(200).json(new ApiResponse(200 , {} , "Password reset mail has been sent on your email addresss"))
+  
+
+
+})
+
+const resetForgetPassword = asyncHandler(async(req,res)=>{
+    const {resetToken} = req.params;
+    const {newPassword , confirmPassword} = req.body;
+    if(!resetToken) throw new ApiError(400 , "Reset token not found");
+    if(newPassword==="" || confirmPassword==="") throw new ApiError(400 , "All fields are required");
+    if(newPassword!==confirmPassword) throw new ApiError(400 , "Confrim password not matched");
+
+   const hashedToken = crypto
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex");
+    const user = await User.findOne({forgetPasswordToken : hashedToken , forgetPasswordExpires : {$gt: Date.now()}});
+    if(!user) throw new ApiError(489 , "Token is invalid or expired");
+    user.forgetPasswordToken = undefined
+    user.forgetPasswordExpires = undefined
+    user.password = newPassword
+    await user.save({validateBeforeSave:false})
+    
+    return res.status(200).json(new ApiResponse(200 , {} , "Password is reset , now you can login"))
+
+})
+
+const changeCurrentPassword = asyncHandler(async(req,res)=>{
+    const {oldPassword , newPassword,  confirmPassword} = req.body
+    if([oldPassword,newPassword,confirmPassword].some((fields)=> fields.trim()=="")) throw new ApiError(400 , "all fields are required")
+    if(newPassword!==confirmPassword) throw new ApiError(400 , "Confrim password not matched");
+    const user = await User.findById(req.user?._id)
+
+    const isPassIsValid = await user.isPasswordCorrect(oldPassword)
+    if(!isPassIsValid)throw new ApiError(400 , "Old password is not correct");
+
+    user.password = newPassword
+    await user.save({validateBeforeSave:false})
+    return res.status(200).json(new ApiResponse(200 , `Hello mr/mrs/miss ${user.fullname}` , "Your password is chagned.."))
+
+  
+
+})
+
+export {userRegisterationController , emailVerification , userLoginController , userLogoutController , getCurrentUserController , resentEmailVerification,refreshAccessToken,forgetPasswordController,resetForgetPassword,changeCurrentPassword}
