@@ -104,7 +104,8 @@ const userLoginController = asyncHandler(async(req,res)=>{
     //save refresh token in db
     //return response to frontend
     const {email , username , password} = req.body
-    if([email,username,password].some((fields)=> fields.trim()==="")) throw new ApiError(400 , "All fields are required")
+    if(email.trim()==="" || username.trim()==="") throw new ApiError(404 , "Email/Username are required");
+    if(password.trim()==="") throw new ApiError(404 , "Please Enter a password");
 
     const user = await User.findOne({
         $or:[{email},{username}]
@@ -128,4 +129,27 @@ const userLoginController = asyncHandler(async(req,res)=>{
     return res.status(200).cookie("accessToken" , accessToken , options).cookie("refreshToken",refreshToken,options)
     .json(new ApiResponse(200 , {user : userLoggedIn.fullname } , "you logged in successfully"))
 })
-export {userRegisterationController , emailVerification , userLoginController}
+
+const userLogoutController = asyncHandler(async(req,res)=>{
+   await User.findByIdAndUpdate(req.user._id,
+    {
+        $set:{
+            refreshToken : ""
+        },
+    },
+    {
+        new : true
+    }
+   )
+
+   const options ={
+      htppOnly : true,
+      secure : true
+   }
+
+   return res.status(200)
+   .clearCookie("accessToken" , options)
+   .clearCookie("refreshToken" , options)
+   .json(new ApiResponse(200 , {} , "User logout successfully"))
+})
+export {userRegisterationController , emailVerification , userLoginController , userLogoutController}
