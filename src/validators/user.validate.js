@@ -1,4 +1,5 @@
 import { body } from "express-validator";
+import { ApiError } from "../utils/ApiError.js";
 
 export const userRegisterValidation = () => {
     return [
@@ -68,3 +69,32 @@ export const userLoginValidation = () => {
         
     ];
 };
+
+export const userForgetPasswordValidtion = ()=>{
+
+    return [
+             
+        body("newPassword")
+            .trim()
+            .notEmpty()
+            .withMessage("Password is required")
+            .isLength({ min: 8 })
+            .withMessage("Password must be at least 8 characters long")
+            .isStrongPassword({minLength:8 ,minLowercase:1,minUppercase:1 ,minNumbers:1 , minSymbols:1,returnScore:false})
+            .withMessage("password must have at lease one lowercase , one uppercase, one number , one symbol"),
+        body("confirmPassword")
+            .trim()
+            .notEmpty()
+            .withMessage("Confirm password is required")
+             .custom((value , {req})=>{
+                if(value!== req.body.newPassword){
+                    throw new ApiError(400 , "Password do not match")
+
+                }
+                return true
+             })
+            
+
+    ]
+
+}
