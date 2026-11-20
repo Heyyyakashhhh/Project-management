@@ -25,8 +25,13 @@ app.get("/", (req,res)=>{
 import healthcheckRoutes from "./routes/healthcheckRoutes.js"
 app.use("/api/v1/healthcheck" , healthcheckRoutes)
 
+//User route
 import userRoutes from "./routes/user.routes.js"
 app.use('/api/v1/users' , userRoutes)
+
+//Project rotue
+import projectRoutes from "./routes/project.routes.js"
+app.use("/api/v1/projects" , projectRoutes)
 
 
 export {app}
