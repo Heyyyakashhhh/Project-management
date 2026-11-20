@@ -270,7 +270,7 @@ const resetForgetPassword = asyncHandler(async(req,res)=>{
 const changeCurrentPassword = asyncHandler(async(req,res)=>{
     const {oldPassword , newPassword,  confirmPassword} = req.body
     if([oldPassword,newPassword,confirmPassword].some((fields)=> fields.trim()=="")) throw new ApiError(400 , "all fields are required")
-    if(newPassword!==confirmPassword) throw new ApiError(400 , "Confrim password not matched");
+
     const user = await User.findById(req.user?._id)
 
     const isPassIsValid = await user.isPasswordCorrect(oldPassword)
