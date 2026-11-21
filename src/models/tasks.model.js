@@ -7,7 +7,7 @@ const TaskSchema = new Schema({
         required:true,
         trim : true,
     },
-    discription:{type : String},
+    description:{type : String},
     project:{
 
         type : Schema.Types.ObjectId,
@@ -33,7 +33,7 @@ const TaskSchema = new Schema({
     attachments:{
         type:[{
             url : String,
-            mimtype :String,
+            mimetype :String,
             size:Number
         }],default:[]
     }

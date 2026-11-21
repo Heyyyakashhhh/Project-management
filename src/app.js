@@ -34,4 +34,8 @@ import projectRoutes from "./routes/project.routes.js"
 app.use("/api/v1/projects" , projectRoutes)
 
 
+//Tasks route
+import TaskRoutes from "./routes/task.routes.js"
+app.use('/api/v1/tasks' , TaskRoutes)
+
 export {app}
